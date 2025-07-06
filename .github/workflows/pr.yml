@@ -25,7 +25,10 @@ jobs:
 
       - name: Test
         run: |
-          dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+          dotnet test --configuration Release --no-build --verbosity normal \
+              /p:CollectCoverage=true \
+              /p:CoverletOutputFormat=opencover \
+              /p:CoverletOutput=./TestResults/Coverage/coverage.opencover.xml \
         env:
           COVERAGE_OUTPUT: coverage.cobertura.xml
 
