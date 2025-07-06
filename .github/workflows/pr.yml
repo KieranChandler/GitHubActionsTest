@@ -25,6 +25,7 @@ jobs:
 
       - name: Test
         run: |
+          pwd
           dotnet test --configuration Release --no-build --verbosity normal \
               /p:CollectCoverage=true \
               /p:CoverletOutputFormat=opencover \
