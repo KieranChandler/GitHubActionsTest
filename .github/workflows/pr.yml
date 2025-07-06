@@ -40,11 +40,17 @@ jobs:
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
 
+      - name: Upload coverage output
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-raw
+          path: ./TestResults/Coverage/coverage.opencover.xml
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: ./TestResults/Coverage/coverage.opencover.xml
+          name: coverage-report-md
+          path: "${{ github.workspace }}/TestResults/Coverage"
 
   report-coverage:
     runs-on: ubuntu-latest
