@@ -35,7 +35,7 @@ jobs:
           dotnet new tool-manifest
           dotnet tool install dotnet-reportgenerator-globaltool
           dotnet tool restore
-          dotnet reportgenerator -reports:./TestResults/Coverage/coverage.cobertura.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
+          dotnet reportgenerator -reports:./TestResults/Coverage/coverage.opencover.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
 
@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: ./TestResults/Coverage/coverage.cobertura.xml
+          path: ./TestResults/Coverage/coverage.opencover.xml
 
   report-coverage:
     runs-on: ubuntu-latest
