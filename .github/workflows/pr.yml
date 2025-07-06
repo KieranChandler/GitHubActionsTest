@@ -31,8 +31,8 @@ jobs:
 
       - name: Generate markdown report
         run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          echo "::add-path::$(dotnet tool list -g | grep reportgenerator | awk '{print $NF}')"
+          dotnet new tool-manifest
+          dotnet tool install dotnet-reportgenerator-globaltool
           dotnet tool restore
           reportgenerator -reports:./TestResults/Coverage/coverage.cobertura.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
         env:
