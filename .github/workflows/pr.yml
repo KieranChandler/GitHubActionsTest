@@ -29,14 +29,14 @@ jobs:
           dotnet test --configuration Release --no-build --verbosity normal \
               /p:CollectCoverage=true \
               /p:CoverletOutputFormat=opencover \
-              /p:CoverletOutput=./TestResults/Coverage/coverage.opencover.xml
+              /p:CoverletOutput="${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml"
 
       - name: Generate markdown report
         run: |
           dotnet new tool-manifest
           dotnet tool install dotnet-reportgenerator-globaltool
           dotnet tool restore
-          dotnet reportgenerator -reports:./TestResults/Coverage/coverage.opencover.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
+          dotnet reportgenerator -reports:"${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml" -targetdir:"${{ github.workspace }}/TestResults/Coverage" -reporttypes:MarkdownSummary
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
 
