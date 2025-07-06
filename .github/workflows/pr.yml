@@ -33,6 +33,7 @@ jobs:
         run: |
           dotnet tool install --global dotnet-reportgenerator-globaltool
           echo "::add-path::$(dotnet tool list -g | grep reportgenerator | awk '{print $NF}')"
+          dotnet tool restore
           reportgenerator -reports:./TestResults/Coverage/coverage.cobertura.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
