@@ -25,14 +25,29 @@ jobs:
 
       - name: Test
         run: |
-          dotnet test --configuration Release --no-build --verbosity normal
-          
+          dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        env:
+          COVERAGE_OUTPUT: coverage.cobertura.xml
+
+      - name: Generate markdown report
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator -reports:./TestResults/Coverage/coverage.cobertura.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
+        env:
+          PATH: ${{ runner.tool_cache }}/dotnet:$PATH
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./TestResults/Coverage/coverage.cobertura.xml
+
   report-coverage:
     runs-on: ubuntu-latest
     needs: ci
     steps:
       - name: Add coverage to PR
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "Code coverage report is available at [Coverage Report](https://example.com/coverage-report)"
+          gh pr comment ${{ github.event.pull_request.number }} --body "$(cat ./TestResults/Coverage/Summary.md)"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
