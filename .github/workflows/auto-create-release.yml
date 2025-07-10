@@ -2,15 +2,19 @@ name: Auto Release on PR Merge
 
 on:
   pull_request:
-    # types: [closed]
+    types: [closed]
     branches: [main]
-  push:
-    branches: ["**"]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      pr_title:
+        description: 'PR Title (for testing - include version like [v1.2.3])'
+        required: true
+        type: string
+        default: 'feat: Test release [v1.0.0]'
 
 jobs:
   create-release:
-    # if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,13 +30,23 @@ jobs:
         id: extract-version
         run: |
           # Extract from PR title (e.g. "feat: Add new feature [v1.2.3]")
-          VERSION=$(echo "${{ github.event.pull_request.title }}" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PR_TITLE="${{ github.event.inputs.pr_title }}"
+            echo "Manual trigger - using provided PR title: $PR_TITLE"
+          else
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            echo "PR Title: $PR_TITLE"
+          fi
+          
+          VERSION=$(echo "$PR_TITLE" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
           
           if [[ -z "$VERSION" ]]; then
-            echo "No version found in PR title. Skipping release."
+            echo "No version found in PR title '$PR_TITLE'. Expected format: [v1.2.3]"
+            echo "Skipping release creation."
             exit 1
           fi
           
+          echo "Extracted version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
@@ -46,8 +60,13 @@ jobs:
 
       - name: Configure git with PR author
         run: |
-          git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
-          git config --local user.name "${{ github.event.pull_request.user.login }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action (Manual Trigger)"
+          else
+            git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
+            git config --local user.name "${{ github.event.pull_request.user.login }}"
+          fi
 
       - name: Create and push tag
         run: |
