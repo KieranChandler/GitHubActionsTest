@@ -1,0 +1,71 @@
+name: Auto Release on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  push:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+jobs:
+  create-release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from PR
+        id: extract-version
+        run: |
+          Extract from PR title (e.g. "feat: Add new feature [v1.2.3]")
+          VERSION=$(echo "${{ github.event.pull_request.title }}" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
+          
+          if [[ -z "$VERSION" ]]; then
+            echo "No version found in PR title. Skipping release."
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check-tag
+        run: |
+          if git rev-parse "v${{ steps.extract-version.outputs.version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ steps.extract-version.outputs.version }} already exists. Skipping release."
+            exit 1
+          fi
+
+      - name: Configure git with PR author
+        run: |
+          git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
+          git config --local user.name "${{ github.event.pull_request.user.login }}"
+
+      - name: Create and push tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a "${{ steps.extract-version.outputs.tag }}" -m "Release ${{ steps.extract-version.outputs.tag }}"
+          git push origin "${{ steps.extract-version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ steps.extract-version.outputs.tag }}',
+              name: 'Release ${{ steps.extract-version.outputs.tag }}',
+              draft: false,
+              prerelease: false,
+              generate_release_notes: true  // This ensures GitHub adds any additional auto-generation
+            });
