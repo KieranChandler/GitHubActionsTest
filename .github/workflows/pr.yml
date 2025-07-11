@@ -34,12 +34,39 @@ jobs:
               /p:CoverletOutputFormat=opencover \
               /p:CoverletOutput="${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml"
 
+      - name: Get changed files
+        id: changed-files
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get list of changed .cs files in this PR
+          CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path | select(endswith(".cs"))' | tr '\n' ';')
+          echo "changed-files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "Changed C# files: $CHANGED_FILES"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate markdown report
         run: |
           dotnet new tool-manifest
           dotnet tool install dotnet-reportgenerator-globaltool
           dotnet tool restore
-          dotnet reportgenerator -reports:"${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml" -targetdir:"${{ github.workspace }}/TestResults/Coverage" -reporttypes:MarkdownSummary
+          
+          # Build the reportgenerator command
+          REPORT_CMD="dotnet reportgenerator -reports:\"${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml\" -targetdir:\"${{ github.workspace }}/TestResults/Coverage\" -reporttypes:MarkdownSummary"
+          
+          # Add file filters if this is a PR with changed files
+          if [[ "${{ github.event_name }}" == "pull_request" && -n "${{ steps.changed-files.outputs.changed-files }}" ]]; then
+            CHANGED_FILES="${{ steps.changed-files.outputs.changed-files }}"
+            # Convert semicolon-separated list to reportgenerator filter format
+            FILE_FILTERS=$(echo "$CHANGED_FILES" | sed 's/;/;+/g' | sed 's/^/+/' | sed 's/;+$//')
+            REPORT_CMD="$REPORT_CMD -filefilters:\"$FILE_FILTERS\""
+            echo "Filtering coverage report to changed files: $FILE_FILTERS"
+          else
+            echo "Generating full coverage report (no PR context or no changed files)"
+          fi
+          
+          # Execute the command
+          eval $REPORT_CMD
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
 
@@ -56,8 +83,17 @@ jobs:
           path: "${{ github.workspace }}/TestResults/Coverage"
 
       - name: Add coverage to PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.changed-files.outputs.changed-files
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "$(cat ./TestResults/Coverage/Summary.md)"
+          # Build the comment body
+          COMMENT_BODY="## 📊 Code Coverage Report"
+          
+          COMMENT_BODY="$COMMENT_BODY"$'\n'"*Coverage report filtered to show only files modified in this PR*"$'\n'
+          
+          # Add the coverage summary
+          COMMENT_BODY="$COMMENT_BODY"$'\n'"$(cat ./TestResults/Coverage/Summary.md)"
+          
+          # Post the comment
+          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
