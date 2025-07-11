@@ -9,6 +9,9 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -25,29 +28,78 @@ jobs:
 
       - name: Test
         run: |
-          dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+          pwd
+          dotnet test --configuration Release --no-build --verbosity normal \
+              /p:CollectCoverage=true \
+              /p:CoverletOutputFormat=opencover \
+              /p:CoverletOutput="${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml"
+
+      - name: Get changed files
+        id: changed-files
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get list of changed .cs files in this PR
+          CHANGED_FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path | select(endswith(".cs"))' | tr '\n' ';')
+          echo "changed-files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "Changed C# files: $CHANGED_FILES"
         env:
-          COVERAGE_OUTPUT: coverage.cobertura.xml
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate markdown report
         run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          reportgenerator -reports:./TestResults/Coverage/coverage.cobertura.xml -targetdir:./TestResults/Coverage -reporttypes:MarkdownSummary
+          dotnet new tool-manifest
+          dotnet tool install dotnet-reportgenerator-globaltool
+          dotnet tool restore
+          
+          # Build the reportgenerator command
+          REPORT_CMD="dotnet reportgenerator -reports:\"${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml\" -targetdir:\"${{ github.workspace }}/TestResults/Coverage\" -reporttypes:MarkdownSummary"
+          
+          # Add file filters if this is a PR with changed files
+          if [[ "${{ github.event_name }}" == "pull_request" && -n "${{ steps.changed-files.outputs.changed-files }}" ]]; then
+            CHANGED_FILES="${{ steps.changed-files.outputs.changed-files }}"
+            
+            # Convert semicolon-separated list to reportgenerator filter format using bash
+            # Remove trailing semicolon if present
+            CHANGED_FILES=${CHANGED_FILES%;}
+            
+            # Replace semicolons with ;+ and add + at the beginning
+            FILE_FILTERS="+${CHANGED_FILES//;/;+}"
+            
+            REPORT_CMD="$REPORT_CMD -filefilters:\"$FILE_FILTERS\""
+            echo "Filtering coverage report to changed files: $FILE_FILTERS"
+          else
+            echo "Generating full coverage report (no PR context or no changed files)"
+          fi
+          
+          # Execute the command
+          eval $REPORT_CMD
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
+
+      - name: Upload coverage output
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-raw
+          path: ./TestResults/Coverage/coverage.opencover.xml
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: ./TestResults/Coverage/coverage.cobertura.xml
+          name: coverage-report-md
+          path: "${{ github.workspace }}/TestResults/Coverage"
 
-  report-coverage:
-    runs-on: ubuntu-latest
-    needs: ci
-    steps:
       - name: Add coverage to PR
+        if: github.event_name == 'pull_request' && steps.changed-files.outputs.changed-files
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "$(cat ./TestResults/Coverage/Summary.md)"
+          # Build the comment body
+          COMMENT_BODY="## 📊 Code Coverage Report"
+          
+          COMMENT_BODY="$COMMENT_BODY"$'\n'"*Coverage report filtered to show only files modified in this PR*"$'\n'
+          
+          # Add the coverage summary
+          COMMENT_BODY="$COMMENT_BODY"$'\n'"$(cat ./TestResults/Coverage/Summary.md)"
+          
+          # Post the comment
+          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
