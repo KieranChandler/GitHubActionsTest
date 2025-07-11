@@ -57,8 +57,14 @@ jobs:
           # Add file filters if this is a PR with changed files
           if [[ "${{ github.event_name }}" == "pull_request" && -n "${{ steps.changed-files.outputs.changed-files }}" ]]; then
             CHANGED_FILES="${{ steps.changed-files.outputs.changed-files }}"
-            # Convert semicolon-separated list to reportgenerator filter format
-            FILE_FILTERS=$(echo "$CHANGED_FILES" | sed 's/;/;+/g' | sed 's/^/+/' | sed 's/;+$//')
+            
+            # Convert semicolon-separated list to reportgenerator filter format using bash
+            # Remove trailing semicolon if present
+            CHANGED_FILES=${CHANGED_FILES%;}
+            
+            # Replace semicolons with ;+ and add + at the beginning
+            FILE_FILTERS="+${CHANGED_FILES//;/;+}"
+            
             REPORT_CMD="$REPORT_CMD -filefilters:\"$FILE_FILTERS\""
             echo "Filtering coverage report to changed files: $FILE_FILTERS"
           else
