@@ -51,12 +51,19 @@ jobs:
           dotnet tool install dotnet-reportgenerator-globaltool
           dotnet tool restore
           
+          # Debug: Show what files are in the coverage report
+          echo "=== Files in coverage report ==="
+          grep -o 'filename="[^"]*"' "${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml" | head -10 || echo "No filename attributes found"
+          
           # Build the reportgenerator command
           REPORT_CMD="dotnet reportgenerator -reports:\"${{ github.workspace }}/TestResults/Coverage/coverage.opencover.xml\" -targetdir:\"${{ github.workspace }}/TestResults/Coverage\" -reporttypes:MarkdownSummary"
           
           # Add file filters if this is a PR with changed files
           if [[ "${{ github.event_name }}" == "pull_request" && -n "${{ steps.changed-files.outputs.changed-files }}" ]]; then
             CHANGED_FILES="${{ steps.changed-files.outputs.changed-files }}"
+            
+            echo "=== GitHub changed files ==="
+            echo "Raw: $CHANGED_FILES"
             
             # Convert semicolon-separated list to reportgenerator filter format using bash
             # Remove trailing semicolon if present
@@ -73,6 +80,15 @@ jobs:
           
           # Execute the command
           eval $REPORT_CMD
+          
+          # Debug: Check what was generated
+          echo "=== Generated report content ==="
+          if [[ -f "${{ github.workspace }}/TestResults/Coverage/Summary.md" ]]; then
+            echo "Summary.md exists, content:"
+            cat "${{ github.workspace }}/TestResults/Coverage/Summary.md"
+          else
+            echo "Summary.md not found!"
+          fi
         env:
           PATH: ${{ runner.tool_cache }}/dotnet:$PATH
 
