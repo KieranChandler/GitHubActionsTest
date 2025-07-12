@@ -1,0 +1,41 @@
+name: Cache AWS Auth Token
+
+on:
+  workflow_call:
+    outputs:
+      code_artifact_token:
+        description: "AWS CodeArtifact auth token"
+        value: ${{ jobs.auth.outputs.code_artifact_token }}
+
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+
+    outputs:
+      code_artifact_token: ${{ steps.get-token.outputs.auth_token }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: 'eu-west-2'
+      CODEARTIFACT_DOMAIN: 'angstrom-sports'
+      CODEARTIFACT_DOMAIN_OWNER: 373797717611
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.CODEARTIFACT_DOMAIN_OWNER }}:role/GithubActions-CodeArtifact
+          aws-region: ${{ env.AWS_REGION }}
+    
+      - name: Get CodeArtifact Auth Token
+        id: get-token
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain $CODEARTIFACT_DOMAIN \
+            --domain-owner $CODEARTIFACT_DOMAIN_OWNER \
+            --query authorizationToken \
+            --output text)
+          echo "auth_token=$TOKEN" >> $GITHUB_OUTPUT

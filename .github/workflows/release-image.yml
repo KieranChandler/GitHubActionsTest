@@ -1,0 +1,54 @@
+name: Release Image
+
+on:
+  workflow_call:
+    inputs:
+      code_artifact_token:
+        required: true
+        type: string
+    secrets:
+      AZURE_PACKAGE_READ_WRITE:
+        required: true
+
+env:
+  ECR_REGISTRY: 373797717611.dkr.ecr.eu-west-2.amazonaws.com # TODO: Should really be an org secret/variable
+  ECR_REPOSITORY: orleans-mlb
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  release-image:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::373797717611:role/GithubActions-EKS-Deploy
+          aws-region: eu-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker image
+        run: |
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG \
+            --build-arg SYSTEM_ACCESSTOKEN="${{ secrets.AZURE_PACKAGE_READ_WRITE }}" \
+            --build-arg CODEARTIFACT_AUTH_TOKEN="${{ inputs.code_artifact_token }}" \
+            .
+
+      - name: Tag Docker image for ECR
+        run: |
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+

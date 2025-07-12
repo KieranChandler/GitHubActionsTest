@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      code_artifact_token:
+        description: Auth token with AWS CodeArtifact permissions
+        required: true
+        type: string
+    secrets:
+      AZURE_PACKAGE_READ_WRITE:
+        required: true
+
+env:
+  AZUREDEVOPS_PAT: ${{ secrets.AZURE_PACKAGE_READ_WRITE }}
+  CODEARTIFACT_URL: https://angstrom-sports-373797717611.d.codeartifact.eu-west-2.amazonaws.com/nuget/AngstromSports/v3/index.json
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Upgrade .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.x.x'
+      
+#BEGIN REGION: Legacy Azure DevOps NugetFeed
+      - name: Authenticate to Azure DevOps feed
+        run: |
+          dotnet nuget update source AngstromSports \
+          --username AzureDevOps \
+          --password "$AZUREDEVOPS_PAT" \
+          --store-password-in-clear-text
+#END REGION: Legacy Azure DevOps NugetFeed
+      
+      - name: Authenticate to AWS CodeArtifact
+        run: |
+          dotnet nuget remove source AngstromSportsAWS || true
+          dotnet nuget add source "$CODEARTIFACT_URL" \
+          --name AngstromSportsAWS \
+          --username aws \
+          --password "${{ inputs.code_artifact_token }}" \
+          --store-password-in-clear-text
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+        continue-on-error: false
+
+      - name: Start test dependencies
+        working-directory: tests/ASF.Core.MLB.Orleans.WebApp.IntegrationTests
+        run: docker compose up -d
+
+      - name: Run Unit Tests
+        run: dotnet test --no-build
+        continue-on-error: false
+
+      - name: Stop test dependencies
+        working-directory: tests/ASF.Core.MLB.Orleans.WebApp.IntegrationTests
+        run: docker compose down --remove-orphans
+
+      # TODO: Publish coverage report on PR (if pr build)

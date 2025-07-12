@@ -1,0 +1,28 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  aws-auth:
+    uses: ./.github/workflows/aws-auth.yml
+
+  ci:
+    needs: aws-auth
+    uses: ./.github/workflows/ci.yml
+    with:
+      code_artifact_token: ${{ needs.aws-auth.outputs.code_artifact_token }}
+    secrets:
+      AZURE_PACKAGE_READ_WRITE: ${{ secrets.AZURE_PACKAGE_READ_WRITE }}
+
+  release-image:
+    needs: [aws-auth, ci]
+    uses: ./.github/workflows/release-image.yml
+    with:
+      code_artifact_token: ${{ needs.aws-auth.outputs.code_artifact_token }}
+    secrets:
+      AZURE_PACKAGE_READ_WRITE: ${{ secrets.AZURE_PACKAGE_READ_WRITE }}
+    permissions:
+      id-token: write
+      contents: read
