@@ -22,14 +22,14 @@ jobs:
       - name: Extract version from PR
         id: extract-version
         run: |
-          VERSION=$(echo "${{ github.event.pull_request.title }}" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
+          VERSION=$(echo "${{ github.event.pull_request.title }}" | grep -oE '\[v[^]]+\]' | sed 's/\[v//; s/\]//')  
           
           if [[ -z "$VERSION" ]]; then
-            echo "No version found in PR title. Skipping release."
+            echo "No version found in PR title \"${{ github.event.pull_request.title }}\". Skipping release."
             echo "create_release=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
           echo "create_release=true" >> $GITHUB_OUTPUT
