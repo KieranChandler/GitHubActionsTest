@@ -1,5 +1,6 @@
 namespace GitHubActionsTest.Api;
 
+// A test comment
 public class WeatherForecast
 {
     public DateOnly Date { get; set; }
