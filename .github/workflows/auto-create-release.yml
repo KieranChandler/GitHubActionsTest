@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  auto-create-release:
+  create-release:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
@@ -22,23 +22,20 @@ jobs:
       - name: Extract version from PR
         id: extract-version
         run: |
-          # Extract from PR title (e.g. "feat: Add new feature [v1.2.3]")
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          echo "PR Title: $PR_TITLE"
-          
-          VERSION=$(echo "$PR_TITLE" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
+          VERSION=$(echo "${{ github.event.pull_request.title }}" | grep -oP '\[v\K[0-9]+\.[0-9]+\.[0-9]+(?=\])')
           
           if [[ -z "$VERSION" ]]; then
-            echo "No version found in PR title '$PR_TITLE'. Expected format: Sample PR Title [v1.2.3]"
-            echo "Skipping release creation."
-            exit 1
+            echo "No version found in PR title. Skipping release."
+            echo "create_release=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
-          echo "Extracted version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "create_release=true" >> $GITHUB_OUTPUT
 
       - name: Check if tag already exists
+        if: steps.extract-version.outputs.create_release == 'true'
         id: check-tag
         run: |
           if git rev-parse "v${{ steps.extract-version.outputs.version }}" >/dev/null 2>&1; then
@@ -47,18 +44,19 @@ jobs:
           fi
 
       - name: Configure git with PR author
+        if: steps.extract-version.outputs.create_release == 'true'
         run: |
           git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
           git config --local user.name "${{ github.event.pull_request.user.login }}"
 
       - name: Create and push tag
+        if: steps.extract-version.outputs.create_release == 'true'
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
           git tag -a "${{ steps.extract-version.outputs.tag }}" -m "Release ${{ steps.extract-version.outputs.tag }}"
           git push origin "${{ steps.extract-version.outputs.tag }}"
 
       - name: Create GitHub Release
+        if: steps.extract-version.outputs.create_release == 'true'
         uses: actions/github-script@v6
         with:
           script: |
@@ -69,5 +67,10 @@ jobs:
               name: 'Release ${{ steps.extract-version.outputs.tag }}',
               draft: false,
               prerelease: false,
-              generate_release_notes: true  // This ensures GitHub adds any additional auto-generation
+              generate_release_notes: true  // true is the same as clicking Generate Release Notes in the UI
             });
+
+      - name: No release created
+        if: steps.extract-version.outputs.create_release != 'true'
+        run: |
+          echo "✅ PR merged successfully without version tag - no release created"
