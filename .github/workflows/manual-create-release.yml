@@ -17,7 +17,7 @@ jobs:
 
   build-and-release:
     needs: extract-version
-    uses: ./.github/workflows/build-and-release.yml
+    uses: ./.github/workflows/release.yml
     with:
       version: ${{ needs.extract-version.outputs.version }}
     secrets: inherit
