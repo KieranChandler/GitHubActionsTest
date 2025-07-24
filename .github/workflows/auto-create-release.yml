@@ -1,4 +1,4 @@
-name: Auto Release on PR Merge
+name: Release on PR Merge
 
 on:
   pull_request:
@@ -12,6 +12,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    outputs:
+      create_release: ${{ steps.extract-version.outputs.create_release }}
+      tag: ${{ steps.extract-version.outputs.tag }}
     
     steps:
       - name: Checkout code
@@ -43,12 +46,6 @@ jobs:
             exit 1
           fi
 
-      - name: Configure git with PR author
-        if: steps.extract-version.outputs.create_release == 'true'
-        run: |
-          git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
-          git config --local user.name "${{ github.event.pull_request.user.login }}"
-
       - name: Create and push tag
         if: steps.extract-version.outputs.create_release == 'true'
         run: |
@@ -74,3 +71,11 @@ jobs:
         if: steps.extract-version.outputs.create_release != 'true'
         run: |
           echo "✅ PR merged successfully without version tag - no release created"
+
+  build-and-release:
+    needs: create-release
+    if: needs.create-release.outputs.create_release == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.create-release.outputs.tag }}
+    secrets: inherit
