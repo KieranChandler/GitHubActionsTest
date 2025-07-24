@@ -1,0 +1,23 @@
+name: Release On Manually Pushed Tag
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  extract-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Extract version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+  build-and-release:
+    needs: extract-version
+    uses: ./.github/workflows/build-and-release.yml
+    with:
+      version: ${{ needs.extract-version.outputs.version }}
+    secrets: inherit
