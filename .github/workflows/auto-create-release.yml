@@ -46,6 +46,12 @@ jobs:
             exit 1
           fi
 
+      - name: Configure git with PR author
+        if: steps.extract-version.outputs.create_release == 'true'
+        run: |
+          git config --local user.email "${{ github.event.pull_request.user.email || format('{0}@users.noreply.github.com', github.event.pull_request.user.login) }}"
+          git config --local user.name "${{ github.event.pull_request.user.login }}"
+
       - name: Create and push tag
         if: steps.extract-version.outputs.create_release == 'true'
         run: |
