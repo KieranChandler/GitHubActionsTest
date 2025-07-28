@@ -96,13 +96,14 @@ jobs:
           
           # Look for existing coverage comment
           echo "=== Looking for coverage comment ==="
-          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | select(.body | test("^## 📊 Code Coverage Report")) | .url' | head -1)
+          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | select(.body | startswith("## 📊 Code Coverage Report")) | .url' | head -1)
           
           echo "Found URL: '$EXISTING_COMMENT_URL'"
           
           if [[ -n "$EXISTING_COMMENT_URL" && "$EXISTING_COMMENT_URL" != "null" ]]; then
-            # Extract comment ID from URL
-            COMMENT_ID=$(echo "$EXISTING_COMMENT_URL" | sed 's|.*/||')
+            # Extract comment ID from the GitHub URL
+            # URL format: https://github.com/owner/repo/pull/7#issuecomment-1234567890
+            COMMENT_ID=$(echo "$EXISTING_COMMENT_URL" | grep -o 'issuecomment-[0-9]*' | cut -d'-' -f2)
             echo "Updating comment ID: $COMMENT_ID"
             
             # Update the existing comment
