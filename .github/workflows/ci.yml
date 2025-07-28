@@ -87,13 +87,20 @@ jobs:
         run: |
           # Build the comment body
           COMMENT_BODY="## 📊 Code Coverage Report"
-          
           COMMENT_BODY="$COMMENT_BODY"$'\n'"*Coverage report filtered to show only files modified in this PR*"$'\n'
-          
-          # Add the coverage summary
           COMMENT_BODY="$COMMENT_BODY"$'\n'"$(cat ./TestResults/Coverage/Summary.md)"
           
-          # Post the comment
-          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
+          # Look for existing coverage comment
+          EXISTING_COMMENT_ID=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.body | startswith("## 📊 Code Coverage Report")) | .databaseId' | head -1)
+          
+          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
+            echo "Updating existing coverage comment (ID: $EXISTING_COMMENT_ID)"
+            gh api repos/${{ github.repository }}/issues/comments/$EXISTING_COMMENT_ID \
+              --method PATCH \
+              --field body="$COMMENT_BODY"
+          else
+            echo "Creating new coverage comment"
+            gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
