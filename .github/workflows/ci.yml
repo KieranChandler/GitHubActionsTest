@@ -90,39 +90,23 @@ jobs:
           COMMENT_BODY="$COMMENT_BODY"$'\n'"*Coverage report filtered to show only files modified in this PR*"$'\n'
           COMMENT_BODY="$COMMENT_BODY"$'\n'"$(cat ./TestResults/Coverage/Summary.md)"
           
-          # Debug: Show all comments to understand the structure
-          echo "=== All PR comments ==="
-          gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | {author: .author.login, body: .body[0:50], url: .url}'
-          
-          # Look for existing coverage comment
-          echo "=== Looking for coverage comment ==="
-          
-          # Get all comment data and save to temp file for processing
+          # Find existing coverage comment
           gh pr view ${{ github.event.pull_request.number }} --json comments > /tmp/comments.json
           
-          # Use simpler jq to just get URLs and process with bash
           EXISTING_COMMENT_URL=""
           while IFS= read -r url; do
-            # Get the comment body for this URL
-            COMMENT_BODY_CHECK=$(jq -r --arg url "$url" '.comments[] | select(.url == $url) | .body' /tmp/comments.json)
-            if [[ "$COMMENT_BODY_CHECK" == *"## 📊 Code Coverage Report"* ]]; then
+            BODY=$(jq -r --arg url "$url" '.comments[] | select(.url == $url) | .body' /tmp/comments.json)
+            if [[ "$BODY" == *"## 📊 Code Coverage Report"* ]]; then
               EXISTING_COMMENT_URL="$url"
               break
             fi
           done < <(jq -r '.comments[].url' /tmp/comments.json)
           
-          echo "Found URL: '$EXISTING_COMMENT_URL'"
-          
-          if [[ -n "$EXISTING_COMMENT_URL" && "$EXISTING_COMMENT_URL" != "null" ]]; then
-            # Extract comment ID from the GitHub URL
-            # URL format: https://github.com/owner/repo/pull/7#issuecomment-1234567890
+          # Update existing comment or create new one
+          if [[ -n "$EXISTING_COMMENT_URL" ]]; then
             COMMENT_ID=$(echo "$EXISTING_COMMENT_URL" | grep -o 'issuecomment-[0-9]*' | cut -d'-' -f2)
-            echo "Updating comment ID: $COMMENT_ID"
-            
-            # Update the existing comment
-            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID \
-              --method PATCH \
-              --field body="$COMMENT_BODY" && echo "✅ Updated existing comment" || echo "❌ Failed to update"
+            echo "Updating existing coverage comment"
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID --method PATCH --field body="$COMMENT_BODY"
           else
             echo "Creating new coverage comment"
             gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
