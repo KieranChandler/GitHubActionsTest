@@ -90,16 +90,26 @@ jobs:
           COMMENT_BODY="$COMMENT_BODY"$'\n'"*Coverage report filtered to show only files modified in this PR*"$'\n'
           COMMENT_BODY="$COMMENT_BODY"$'\n'"$(cat ./TestResults/Coverage/Summary.md)"
           
-          # Look for existing coverage comment
-          EXISTING_COMMENT_ID=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.body | startswith("## 📊 Code Coverage Report")) | .databaseId' | head -1)
+          # First, let's see what properties are available
+          echo "Checking available comment properties..."
+          gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[0] | keys' || echo "No comments found"
           
-          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
-            echo "Updating existing coverage comment (ID: $EXISTING_COMMENT_ID)"
-            gh api repos/${{ github.repository }}/issues/comments/$EXISTING_COMMENT_ID \
+          # Try to find existing coverage comment using URL (which should be unique)
+          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | select(.body | startswith("## 📊 Code Coverage Report")) | .url' | head -1)
+          
+          if [[ -n "$EXISTING_COMMENT_URL" && "$EXISTING_COMMENT_URL" != "null" ]]; then
+            echo "Found existing coverage comment: $EXISTING_COMMENT_URL"
+            # Extract comment ID from URL (format: https://api.github.com/repos/owner/repo/issues/comments/COMMENT_ID)
+            COMMENT_ID=$(echo "$EXISTING_COMMENT_URL" | grep -o '[0-9]*$')
+            echo "Extracted comment ID: $COMMENT_ID"
+            
+            # Update the existing comment
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID \
               --method PATCH \
               --field body="$COMMENT_BODY"
+            echo "Updated existing coverage comment"
           else
-            echo "Creating new coverage comment"
+            echo "No existing coverage comment found, creating new one"
             gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
           fi
         env:
