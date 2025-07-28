@@ -97,8 +97,19 @@ jobs:
           # Look for existing coverage comment
           echo "=== Looking for coverage comment ==="
           
-          # Get all comment URLs and bodies, then use grep to find the coverage comment
-          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | "\(.url)|\(.body)"' | grep "## 📊 Code Coverage Report" | cut -d'|' -f1 | head -1)
+          # Get all comment data and save to temp file for processing
+          gh pr view ${{ github.event.pull_request.number }} --json comments > /tmp/comments.json
+          
+          # Use simpler jq to just get URLs and process with bash
+          EXISTING_COMMENT_URL=""
+          while IFS= read -r url; do
+            # Get the comment body for this URL
+            COMMENT_BODY_CHECK=$(jq -r --arg url "$url" '.comments[] | select(.url == $url) | .body' /tmp/comments.json)
+            if [[ "$COMMENT_BODY_CHECK" == *"## 📊 Code Coverage Report"* ]]; then
+              EXISTING_COMMENT_URL="$url"
+              break
+            fi
+          done < <(jq -r '.comments[].url' /tmp/comments.json)
           
           echo "Found URL: '$EXISTING_COMMENT_URL'"
           
