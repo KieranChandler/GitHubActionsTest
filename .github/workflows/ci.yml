@@ -96,7 +96,7 @@ jobs:
           
           # Look for existing coverage comment
           echo "=== Looking for coverage comment ==="
-          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | select(.body | startswith("## 📊 Code Coverage Report")) | .url' | head -1)
+          EXISTING_COMMENT_URL=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq -r '.comments[] | select(.body | contains("## 📊 Code Coverage Report")) | .url' | head -1)
           
           echo "Found URL: '$EXISTING_COMMENT_URL'"
           
