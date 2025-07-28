@@ -57,7 +57,7 @@ jobs:
             CHANGED_FILES=${CHANGED_FILES%;}
             
             # Replace semicolons with ;+ and add + at the beginning
-            FILE_FILTERS="+${CHANGED_FILES//;/;+}"
+            FILE_FILTERS="+*${CHANGED_FILES//;/;+}"
             
             REPORT_CMD="$REPORT_CMD -filefilters:\"$FILE_FILTERS\""
             echo "Filtering coverage report to changed files: $FILE_FILTERS"
